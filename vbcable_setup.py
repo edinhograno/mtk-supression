@@ -25,5 +25,16 @@ def install(progress_callback=None) -> bool:
         return False
     if progress_callback:
         progress_callback('Instalando driver VB-Cable...')
-    result = subprocess.run([installer, '/S'], capture_output=True, timeout=60, cwd=os.path.dirname(installer))
+    cwd = os.path.dirname(installer)
+    # Requires UAC elevation; Start-Process -Verb RunAs triggers the UAC prompt
+    ps_cmd = (
+        f'$p = Start-Process -FilePath "{installer}" -ArgumentList "/S"'
+        f' -Verb RunAs -Wait -WorkingDirectory "{cwd}" -PassThru;'
+        f' exit $p.ExitCode'
+    )
+    result = subprocess.run(
+        ['powershell', '-NoProfile', '-Command', ps_cmd],
+        capture_output=True,
+        timeout=120,
+    )
     return result.returncode == 0

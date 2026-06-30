@@ -45,24 +45,16 @@ def test_intensity_clipped_below_zero():
     np.testing.assert_array_equal(result_neg, result_zero)
 
 
+def test_backend_uses_pedalboard_when_available():
+    from noise_filter import NoiseFilter
+    f = NoiseFilter()
+    assert f.backend == 'pedalboard'
+
+
 def test_backend_falls_back_to_noisereduce():
-    with patch.dict('sys.modules', {'rnnoise': None}):
+    with patch.dict('sys.modules', {'pedalboard': None}):
         import importlib
         import noise_filter
         importlib.reload(noise_filter)
         f = noise_filter.NoiseFilter()
         assert f.backend == 'noisereduce'
-
-
-def test_backend_uses_rnnoise_when_available():
-    mock_rnnoise = MagicMock()
-    mock_denoiser = MagicMock()
-    mock_rnnoise.RNNoise.return_value = mock_denoiser
-    chunk = make_chunk()
-    mock_denoiser.process_frame.return_value = chunk.tolist()
-    with patch.dict('sys.modules', {'rnnoise': mock_rnnoise}):
-        import importlib
-        import noise_filter
-        importlib.reload(noise_filter)
-        f = noise_filter.NoiseFilter()
-        assert f.backend == 'rnnoise'

@@ -1,5 +1,6 @@
 sounddevice==0.4.7
 numpy==2.5.0
 noisereduce==3.0.3
+pedalboard==0.9.23
 pystray==0.19.5
 Pillow==12.2.0

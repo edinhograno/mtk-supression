@@ -41,7 +41,10 @@ def test_install_returns_true_on_success(mocker, tmp_path):
     mock_run.return_value = MagicMock(returncode=0)
     result = vbcable_setup.install()
     assert result is True
-    mock_run.assert_called_once_with([str(installer), '/S'], capture_output=True, timeout=60, cwd=str(tmp_path))
+    args, kwargs = mock_run.call_args
+    assert args[0][0] == 'powershell'
+    assert str(installer) in args[0][-1]
+    assert kwargs.get('timeout') == 120
 
 
 def test_install_returns_false_when_installer_missing(mocker):
