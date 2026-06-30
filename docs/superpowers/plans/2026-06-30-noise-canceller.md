@@ -6,12 +6,12 @@
 
 **Architecture:** Entry point (`main.py`) wires together a background audio processing thread (`audio_engine.py` → `noise_filter.py`) with a system tray icon (`tray.py`) and a settings window (`settings_ui.py`). On first run, a wizard (`first_run.py`) installs VB-Cable silently and asks about autostart. Config persists to `~/.mtk-noise-canceller/config.json`.
 
-**Tech Stack:** Python 3.11+, sounddevice, numpy, noisereduce, rnnoise (optional), pystray, Pillow, tkinter (stdlib), PyInstaller
+**Tech Stack:** Python 3.14+, sounddevice, numpy, noisereduce, rnnoise (optional), pystray, Pillow, tkinter (stdlib), PyInstaller
 
 ## Global Constraints
 
 - Windows only (uses `winreg`, VB-Cable driver)
-- Python 3.11+
+- Python 3.14+
 - All source files in project root (no `src/` subdirectory)
 - Tests in `tests/` directory, mirroring source file names (`test_config.py`, `test_noise_filter.py`, etc.)
 - Config stored at `~/.mtk-noise-canceller/config.json`
@@ -38,17 +38,17 @@
 
 ```
 sounddevice==0.4.7
-numpy==1.26.4
+numpy==2.5.0
 noisereduce==3.0.3
 pystray==0.19.5
-Pillow==10.3.0
+Pillow==12.2.0
 ```
 
 - [ ] **Step 2: Create requirements-dev.txt**
 
 ```
 -r requirements.txt
-pyinstaller==6.6.0
+pyinstaller==6.21.0
 pytest==8.2.0
 pytest-mock==3.14.0
 ```
