@@ -1,5 +1,5 @@
+import logging
 import threading
-import numpy as np
 import sounddevice as sd
 from noise_filter import NoiseFilter
 
@@ -32,6 +32,7 @@ class AudioEngine:
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
+        self._thread = None
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
@@ -51,7 +52,7 @@ class AudioEngine:
             ):
                 self._stop_event.wait()
         except Exception:
-            pass
+            logging.exception("AudioEngine stream error")
 
     def _callback(self, indata, outdata, frames, time, status):
         chunk = indata[:, 0]
