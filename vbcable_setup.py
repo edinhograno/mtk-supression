@@ -25,5 +25,5 @@ def install(progress_callback=None) -> bool:
         return False
     if progress_callback:
         progress_callback('Instalando driver VB-Cable...')
-    result = subprocess.run([installer, '/S'], capture_output=True, timeout=60)
+    result = subprocess.run([installer, '/S'], capture_output=True, timeout=60, cwd=os.path.dirname(installer))
     return result.returncode == 0
