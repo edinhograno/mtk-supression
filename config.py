@@ -1,6 +1,5 @@
 import json
 from pathlib import Path
-import sys
 
 # Only initialize if not already set (preserves patches during reload)
 if 'CONFIG_DIR' not in dir():
@@ -19,21 +18,13 @@ _DEFAULTS = {
 
 class Config:
     def __init__(self):
-        self._data = {
-            'first_run': True,
-            'input_device': None,
-            'intensity': 0.75,
-            'autostart': False,
-            'active': True,
-        }
+        self._data = dict(_DEFAULTS)
         self._load()
 
     def _load(self):
-        config_module = sys.modules[__name__]
-        config_file = config_module.CONFIG_FILE
-        if config_file.exists():
+        if CONFIG_FILE.exists():
             try:
-                with open(config_file, 'r', encoding='utf-8') as f:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                     self._data.update(json.load(f))
             except (json.JSONDecodeError, OSError):
                 pass
@@ -45,19 +36,10 @@ class Config:
         self._data[key] = value
 
     def save(self):
-        config_module = sys.modules[__name__]
-        config_dir = config_module.CONFIG_DIR
-        config_file = config_module.CONFIG_FILE
-        config_dir.mkdir(parents=True, exist_ok=True)
-        with open(config_file, 'w', encoding='utf-8') as f:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self._data, f, indent=2)
 
     def reload(self):
-        self._data = {
-            'first_run': True,
-            'input_device': None,
-            'intensity': 0.75,
-            'autostart': False,
-            'active': True,
-        }
+        self._data = dict(_DEFAULTS)
         self._load()
