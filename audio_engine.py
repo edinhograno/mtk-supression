@@ -14,6 +14,10 @@ class AudioEngine:
         self._thread = None
         self._input_device = None
         self._intensity = 0.75
+        self._last_error = None
+
+    def get_last_error(self) -> str | None:
+        return self._last_error
 
     def set_input_device(self, device_name: str):
         self._input_device = device_name
@@ -40,6 +44,8 @@ class AudioEngine:
     def _run(self):
         output_device = self._find_cable_input()
         if output_device is None:
+            logging.error("AudioEngine: CABLE Input not found")
+            self._last_error = "CABLE Input (VB-Cable) não encontrado."
             return
         try:
             with sd.Stream(
@@ -50,9 +56,11 @@ class AudioEngine:
                 device=(self._input_device, output_device),
                 callback=self._callback,
             ):
+                self._last_error = None
                 self._stop_event.wait()
-        except Exception:
+        except Exception as e:
             logging.exception("AudioEngine stream error")
+            self._last_error = str(e)
 
     def _callback(self, indata, outdata, frames, time, status):
         chunk = indata[:, 0]
@@ -60,8 +68,30 @@ class AudioEngine:
         outdata[:, 0] = filtered
 
     def _find_cable_input(self):
-        devices = sd.query_devices()
-        for i, d in enumerate(devices):
+        """Return device index for CABLE Input, preferring same host API as input device."""
+        all_devices = sd.query_devices()
+
+        # Determine which hostapi the input device uses
+        input_hostapi = None
+        if self._input_device:
+            for d in all_devices:
+                if d['name'] == self._input_device:
+                    input_hostapi = d['hostapi']
+                    break
+
+        # Find CABLE Input in same host API as input — PortAudio requires both in same API
+        if input_hostapi is not None:
+            for i, d in enumerate(all_devices):
+                if ('CABLE Input' in d['name']
+                        and d['max_output_channels'] > 0
+                        and d['hostapi'] == input_hostapi):
+                    return i
+            logging.error("AudioEngine: CABLE Input not found in hostapi %d", input_hostapi)
+            self._last_error = "CABLE Input (VB-Cable) não encontrado na mesma API de áudio do microfone."
+            return None
+
+        # No input device set — pick first CABLE Input found
+        for i, d in enumerate(all_devices):
             if 'CABLE Input' in d['name'] and d['max_output_channels'] > 0:
                 return i
         return None

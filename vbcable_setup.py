@@ -1,9 +1,14 @@
 import os
 import sys
 import subprocess
+import tempfile
+import urllib.request
+import zipfile
 import sounddevice as sd
 
 INSTALLER_NAME = 'VBCABLE_Setup_x64.exe'
+_DOWNLOAD_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip'
+_ZIP_ENTRY = 'VBCABLE_Setup_x64.exe'
 
 
 def is_installed() -> bool:
@@ -19,14 +24,52 @@ def get_bundled_installer_path() -> str:
     return os.path.join(base, 'assets', INSTALLER_NAME)
 
 
+def _download_installer(progress_callback=None) -> str:
+    """Downloads VB-Cable zip and extracts installer to a temp dir. Returns path to exe."""
+    tmp_dir = tempfile.mkdtemp(prefix='mtk_vbcable_')
+    zip_path = os.path.join(tmp_dir, 'vbcable.zip')
+
+    if progress_callback:
+        progress_callback('Baixando driver VB-Cable...')
+
+    def _reporthook(count, block_size, total_size):
+        if progress_callback and total_size > 0:
+            pct = min(100, int(count * block_size * 100 / total_size))
+            progress_callback(f'Baixando driver VB-Cable... {pct}%')
+
+    urllib.request.urlretrieve(_DOWNLOAD_URL, zip_path, reporthook=_reporthook)
+
+    if progress_callback:
+        progress_callback('Extraindo instalador...')
+
+    with zipfile.ZipFile(zip_path, 'r') as z:
+        names = z.namelist()
+        match = next((n for n in names if n.endswith(_ZIP_ENTRY)), None)
+        if match is None:
+            raise FileNotFoundError(f'{_ZIP_ENTRY} not found in zip')
+        z.extractall(tmp_dir)
+        extracted = os.path.join(tmp_dir, match)
+
+    os.remove(zip_path)
+    return extracted
+
+
 def install(progress_callback=None) -> bool:
     installer = get_bundled_installer_path()
+
+    if not os.path.exists(installer):
+        try:
+            installer = _download_installer(progress_callback)
+        except Exception:
+            return False
+
     if not os.path.exists(installer):
         return False
+
     if progress_callback:
         progress_callback('Instalando driver VB-Cable...')
+
     cwd = os.path.dirname(installer)
-    # Requires UAC elevation; Start-Process -Verb RunAs triggers the UAC prompt
     ps_cmd = (
         f'$p = Start-Process -FilePath "{installer}" -ArgumentList "/S"'
         f' -Verb RunAs -Wait -WorkingDirectory "{cwd}" -PassThru;'

@@ -1,4 +1,5 @@
 import sys
+import threading
 import winreg
 import tkinter as tk
 from tkinter import messagebox
@@ -17,7 +18,8 @@ def run_if_needed(config: Config) -> bool:
     if not vbcable_setup.is_installed():
         if not _ask_install_vbcable():
             return False
-        if not vbcable_setup.install():
+        ok = _install_with_progress()
+        if not ok:
             _show_install_error()
             return False
 
@@ -29,12 +31,38 @@ def run_if_needed(config: Config) -> bool:
     return True
 
 
+def _install_with_progress() -> bool:
+    result = [False]
+    root = tk.Tk()
+    root.title('MTK Noise Canceller')
+    root.resizable(False, False)
+    root.geometry('340x90')
+
+    label_var = tk.StringVar(value='Iniciando...')
+    tk.Label(root, textvariable=label_var, padx=20, pady=10).pack()
+    bar_var = tk.StringVar(value='')
+    tk.Label(root, textvariable=bar_var, fg='gray').pack()
+
+    def progress(msg: str):
+        label_var.set(msg)
+        root.update_idletasks()
+
+    def worker():
+        result[0] = vbcable_setup.install(progress_callback=progress)
+        root.after(0, root.destroy)
+
+    threading.Thread(target=worker, daemon=True).start()
+    root.mainloop()
+    return result[0]
+
+
 def _ask_install_vbcable() -> bool:
     root = tk.Tk()
     root.withdraw()
     result = messagebox.askyesno(
         'MTK Noise Canceller',
         'Este app precisa instalar um driver de áudio virtual (VB-Cable) para funcionar.\n\n'
+        'O driver será baixado e instalado automaticamente (~5 MB).\n\n'
         'Deseja instalar agora?',
     )
     root.destroy()
@@ -57,7 +85,9 @@ def _show_install_error():
     root.withdraw()
     messagebox.showerror(
         'MTK Noise Canceller',
-        'Falha ao instalar VB-Cable.\nTente executar o app como administrador.',
+        'Falha ao instalar VB-Cable.\n\n'
+        'Verifique sua conexão com a internet e tente novamente.\n'
+        'Se o problema persistir, execute o app como administrador.',
     )
     root.destroy()
 

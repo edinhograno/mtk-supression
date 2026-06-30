@@ -4,17 +4,19 @@ from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
 
 block_cipher = None
 
-# Collect pedalboard native libs and data
 pedalboard_datas = collect_data_files('pedalboard')
 pedalboard_binaries = collect_dynamic_libs('pedalboard')
+sounddevice_datas = collect_data_files('sounddevice')
+sounddevice_binaries = collect_dynamic_libs('sounddevice')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=pedalboard_binaries,
+    binaries=[*pedalboard_binaries, *sounddevice_binaries],
     datas=[
         ('assets/icon.ico', 'assets'),
         *pedalboard_datas,
+        *sounddevice_datas,
     ],
     hiddenimports=[
         'pedalboard',

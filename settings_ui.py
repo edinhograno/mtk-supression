@@ -2,21 +2,44 @@ import sys
 import queue
 import winreg
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import sounddevice as sd
 
 from config import Config
 from audio_engine import AudioEngine
 
 _APP_NAME = 'MTKNoiseCanceller'
+
+
+def _query_input_devices() -> list[tuple[int, str]]:
+    """Return (index, name) pairs for input devices, preferring MME for compatibility."""
+    all_devices = list(enumerate(sd.query_devices()))
+    try:
+        hostapis = sd.query_hostapis()
+        mme_idx = next(i for i, h in enumerate(hostapis) if 'MME' in h['name'])
+        devices = [
+            (i, d['name']) for i, d in all_devices
+            if d['hostapi'] == mme_idx
+            and d['max_input_channels'] > 0
+            and 'CABLE' not in d['name']
+        ]
+        if devices:
+            return devices
+    except Exception:
+        pass
+    return [
+        (i, d['name']) for i, d in all_devices
+        if d['max_input_channels'] > 0 and 'CABLE' not in d['name']
+    ]
 _RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
 _POLL_MS = 100
 
 
 class SettingsUI:
-    def __init__(self, config: Config, engine: AudioEngine):
+    def __init__(self, config: Config, engine: AudioEngine, show_on_start: bool = False):
         self._config = config
         self._engine = engine
+        self._show_on_start = show_on_start
         self._window = None
         self._cmd_queue = None
 
@@ -63,7 +86,15 @@ class SettingsUI:
         win.title('MTK Noise Canceller')
         win.resizable(False, False)
         win.protocol('WM_DELETE_WINDOW', win.withdraw)
-        win.withdraw()  # start hidden — shown on demand via request_show()
+        win.update_idletasks()
+        sw = win.winfo_screenwidth()
+        sh = win.winfo_screenheight()
+        w = win.winfo_reqwidth()
+        h = win.winfo_reqheight()
+        win.geometry(f'+{(sw - w) // 2}+{(sh - h) // 2}')
+
+        if not self._show_on_start:
+            win.withdraw()  # start hidden — shown on demand via request_show()
         self._window = win
 
         frame = ttk.Frame(win, padding=16)
@@ -71,13 +102,13 @@ class SettingsUI:
 
         # Mic selector
         ttk.Label(frame, text='Microfone:').grid(row=0, column=0, sticky='w', pady=4)
-        input_devices = [
-            d['name'] for d in sd.query_devices()
-            if d['max_input_channels'] > 0 and 'CABLE' not in d['name']
-        ]
-        saved = self._config.get('input_device') or (input_devices[0] if input_devices else '')
-        self._mic_var = tk.StringVar(value=saved)
-        mic_cb = ttk.Combobox(frame, textvariable=self._mic_var, values=input_devices, width=32, state='readonly')
+        device_pairs = _query_input_devices()
+        self._device_index_map = {name: idx for idx, name in device_pairs}
+        device_names = [name for _, name in device_pairs]
+        saved_idx = self._config.get('input_device_index')
+        saved_name = next((name for idx, name in device_pairs if idx == saved_idx), device_names[0] if device_names else '')
+        self._mic_var = tk.StringVar(value=saved_name)
+        mic_cb = ttk.Combobox(frame, textvariable=self._mic_var, values=device_names, width=55, state='readonly')
         mic_cb.grid(row=0, column=1, columnspan=2, pady=4, sticky='w')
         mic_cb.bind('<<ComboboxSelected>>', self._on_mic_change)
 
@@ -112,11 +143,13 @@ class SettingsUI:
 
     def _on_mic_change(self, *_):
         name = self._mic_var.get()
+        idx = self._device_index_map.get(name)
+        self._config.set('input_device_index', idx)
         self._config.set('input_device', name)
         self._config.save()
         if self._engine.is_running():
             self._engine.stop()
-        self._engine.set_input_device(name)
+        self._engine.set_input_device(idx)
         if self._config.get('active', True):
             self._engine.start()
         self._refresh_status()
@@ -152,7 +185,18 @@ class SettingsUI:
         else:
             self._engine.start()
             self._config.set('active', True)
+            # Give thread time to fail if stream can't open
+            self._window.after(800, self._check_engine_started)
         self._config.save()
+        self._refresh_status()
+        self._refresh_btn()
+
+    def _check_engine_started(self):
+        if not self._engine.is_running():
+            err = self._engine.get_last_error() or 'Erro desconhecido'
+            messagebox.showerror('MTK Noise Canceller', f'Falha ao iniciar áudio:\n{err}')
+            self._config.set('active', False)
+            self._config.save()
         self._refresh_status()
         self._refresh_btn()
 
