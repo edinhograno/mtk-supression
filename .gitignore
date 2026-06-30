@@ -9,3 +9,4 @@ build/
 !build.spec
 *.egg-info/
 .pytest_cache/
+assets/VBCABLE_Setup_x64.exe
