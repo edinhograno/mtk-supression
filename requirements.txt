@@ -1,0 +1,5 @@
+sounddevice==0.4.7
+numpy==1.26.4
+noisereduce==3.0.3
+pystray==0.19.5
+Pillow==10.3.0
