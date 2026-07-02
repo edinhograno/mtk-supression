@@ -82,5 +82,6 @@ def test_download_update_returns_path(mocker, tmp_path):
 def test_launch_installer_calls_popen(mocker):
     import updater
     mock_popen = mocker.patch('subprocess.Popen')
-    updater.launch_installer(Path('C:/temp/setup.exe'))
-    mock_popen.assert_called_once_with(['C:/temp/setup.exe'])
+    p = Path('C:/temp/setup.exe')
+    updater.launch_installer(p)
+    mock_popen.assert_called_once_with([str(p)])

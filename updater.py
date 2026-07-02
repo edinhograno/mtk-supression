@@ -47,4 +47,4 @@ def download_update(version: str, progress_cb: Callable[[int], None]) -> Path:
 
 
 def launch_installer(setup_path: Path) -> None:
-    subprocess.Popen([setup_path.as_posix()])
+    subprocess.Popen([str(setup_path)])
