@@ -34,9 +34,13 @@ if ($SkipInstaller) {
 
 $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
 if (-not $iscc) {
-    $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+    $candidates = @(
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+    )
+    $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 }
-if (-not (Test-Path $iscc)) {
+if (-not $iscc) {
     Write-Host "Inno Setup not found at: $iscc" -ForegroundColor Yellow
     Write-Host "Install from https://jrsoftware.org/isinfo.php or use -SkipInstaller" -ForegroundColor Yellow
     exit 1

@@ -1,7 +1,7 @@
 ; installer/mtk.iss
 [Setup]
 AppName=MTK Noise Canceller
-AppVersion=1.0.0
+AppVersion=1.1.0
 AppPublisher=Mobiltracker
 AppPublisherURL=https://github.com/edinhograno/mtk-supression
 AppId={{C0716AEC-1E9B-4B08-A5B4-6FED63016C76}
