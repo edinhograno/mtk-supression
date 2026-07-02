@@ -18,10 +18,10 @@ if (-not $token) {
 }
 
 $repo = "edinhograno/mtk-supression"
-$exe  = "$PSScriptRoot\dist\mtk-noise-canceller.exe"
+$exe  = "$PSScriptRoot\installer\Output\mtk-noise-canceller-setup.exe"
 
 if (-not (Test-Path $exe)) {
-    Write-Host "ERRO: exe nao encontrado. Rode .\build.ps1 primeiro." -ForegroundColor Red
+    Write-Host "ERRO: setup.exe nao encontrado. Rode .\build.ps1 primeiro." -ForegroundColor Red
     exit 1
 }
 
@@ -56,7 +56,7 @@ $uploadUrl = $release.upload_url -replace '\{.*\}', ''
 $fileBytes = [System.IO.File]::ReadAllBytes($exe)
 
 Invoke-RestMethod `
-    -Uri "${uploadUrl}?name=mtk-noise-canceller.exe" `
+    -Uri "${uploadUrl}?name=mtk-noise-canceller-setup.exe" `
     -Method Post `
     -Headers $headers `
     -Body $fileBytes `

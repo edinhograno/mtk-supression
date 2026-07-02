@@ -1,26 +1,59 @@
 param(
-    [switch]$Clean
+    [switch]$Clean,
+    [switch]$SkipInstaller
 )
 
 $root = $PSScriptRoot
 Set-Location $root
 
-if ($Clean -and (Test-Path "$root\dist")) {
+if ($Clean) {
     Remove-Item -Recurse -Force "$root\dist", "$root\build" -ErrorAction SilentlyContinue
-    Write-Host "Cleaned dist/ and build/"
+    Remove-Item -Recurse -Force "$root\installer\Output" -ErrorAction SilentlyContinue
+    Write-Host "Cleaned dist/, build/, installer/Output/"
 }
 
-Write-Host "Building..."
-pyinstaller build.spec
+Write-Host "Building exe..."
+& .venv\Scripts\pyinstaller build.spec
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Build FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
+    Write-Host "PyInstaller FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
 $exe = "$root\dist\mtk-noise-canceller.exe"
-if (Test-Path $exe) {
-    $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
-    Write-Host "OK -> dist\mtk-noise-canceller.exe ($size MB)" -ForegroundColor Green
-} else {
+if (-not (Test-Path $exe)) {
     Write-Host "Build finished but exe not found" -ForegroundColor Yellow
+    exit 1
+}
+$exeSize = [math]::Round((Get-Item $exe).Length / 1MB, 1)
+Write-Host "Exe -> dist\mtk-noise-canceller.exe ($exeSize MB)" -ForegroundColor Green
+
+if ($SkipInstaller) {
+    Write-Host "Skipping installer (-SkipInstaller)" -ForegroundColor Yellow
+    exit 0
+}
+
+$iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if (-not (Test-Path $iscc)) {
+    Write-Host "Inno Setup not found at: $iscc" -ForegroundColor Yellow
+    Write-Host "Install from https://jrsoftware.org/isinfo.php or use -SkipInstaller" -ForegroundColor Yellow
+    exit 1
+}
+
+$version = & .venv\Scripts\python -c "from version import __version__; print(__version__)"
+$issPath = "$root\installer\mtk.iss"
+(Get-Content $issPath) -replace 'AppVersion=.*', "AppVersion=$version" |
+    Set-Content $issPath -Encoding utf8
+Write-Host "Injected version $version into mtk.iss"
+
+Write-Host "Building installer..."
+& $iscc $issPath
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ISCC FAILED (exit $LASTEXITCODE)" -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+
+$setup = "$root\installer\Output\mtk-noise-canceller-setup.exe"
+if (Test-Path $setup) {
+    $setupSize = [math]::Round((Get-Item $setup).Length / 1MB, 1)
+    Write-Host "OK -> installer\Output\mtk-noise-canceller-setup.exe ($setupSize MB)" -ForegroundColor Green
 }
