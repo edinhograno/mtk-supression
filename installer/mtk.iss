@@ -34,4 +34,4 @@ Name: "{group}\Desinstalar MTK Noise Canceller"; Filename: "{uninstallexe}"
 Type: filesandordirs; Name: "{app}"
 
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "MTKNoiseCanceller"; Flags: deletevalue uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "MTKNoiseCanceller"; Flags: uninsdeletevalue
