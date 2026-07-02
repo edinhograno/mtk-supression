@@ -15,3 +15,4 @@ assets/*.sys
 assets/*.cat
 assets/*.inf
 assets/readme.txt
+installer/Output/
