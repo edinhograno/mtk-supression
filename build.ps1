@@ -32,17 +32,24 @@ if ($SkipInstaller) {
     exit 0
 }
 
-$iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+$iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+if (-not $iscc) {
+    $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+}
 if (-not (Test-Path $iscc)) {
     Write-Host "Inno Setup not found at: $iscc" -ForegroundColor Yellow
     Write-Host "Install from https://jrsoftware.org/isinfo.php or use -SkipInstaller" -ForegroundColor Yellow
     exit 1
 }
 
-$version = & .venv\Scripts\python -c "from version import __version__; print(__version__)"
+$version = (& .venv\Scripts\python -c "from version import __version__; print(__version__)").Trim()
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to read version from version.py" -ForegroundColor Red
+    exit $LASTEXITCODE
+}
 $issPath = "$root\installer\mtk.iss"
-(Get-Content $issPath) -replace 'AppVersion=.*', "AppVersion=$version" |
-    Set-Content $issPath -Encoding utf8
+$issContent = (Get-Content $issPath) -replace 'AppVersion=.*', "AppVersion=$version"
+[System.IO.File]::WriteAllLines($issPath, $issContent, [System.Text.UTF8Encoding]::new($false))
 Write-Host "Injected version $version into mtk.iss"
 
 Write-Host "Building installer..."
@@ -56,4 +63,7 @@ $setup = "$root\installer\Output\mtk-noise-canceller-setup.exe"
 if (Test-Path $setup) {
     $setupSize = [math]::Round((Get-Item $setup).Length / 1MB, 1)
     Write-Host "OK -> installer\Output\mtk-noise-canceller-setup.exe ($setupSize MB)" -ForegroundColor Green
+} else {
+    Write-Host "Installer not found at expected path: $setup" -ForegroundColor Red
+    exit 1
 }
