@@ -1,10 +1,22 @@
 import sys
 import queue
+import time
+import threading
+import updater
 from config import Config
 from audio_engine import AudioEngine
 from first_run import run_if_needed
 from settings_ui import SettingsUI
 from tray import TrayApp
+
+
+def _update_check_loop(ui: SettingsUI) -> None:
+    while True:
+        version = updater.check_for_update()
+        if version:
+            ui.notify_update(version)
+            return
+        time.sleep(86400)
 
 
 def main():
@@ -35,6 +47,8 @@ def main():
         on_quit=ui.request_quit,
     )
     tray.run_in_thread()
+
+    threading.Thread(target=_update_check_loop, args=(ui,), daemon=True).start()
 
     # Blocks on main thread until quit command received
     ui.run_main_loop(cmd_queue)
