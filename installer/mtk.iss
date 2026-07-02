@@ -4,6 +4,7 @@ AppName=MTK Noise Canceller
 AppVersion=1.0.0
 AppPublisher=Mobiltracker
 AppPublisherURL=https://github.com/edinhograno/mtk-supression
+AppId={{C0716AEC-1E9B-4B08-A5B4-6FED63016C76}
 DefaultDirName={autopf}\MTK Noise Canceller
 DefaultGroupName=MTK Noise Canceller
 OutputDir=Output
@@ -31,3 +32,6 @@ Name: "{group}\Desinstalar MTK Noise Canceller"; Filename: "{uninstallexe}"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
+
+[Registry]
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "MTKNoiseCanceller"; Flags: deletevalue uninsdeletevalue
