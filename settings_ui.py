@@ -242,10 +242,18 @@ class SettingsUI:
 
     def _download_and_install(self) -> None:
         import updater
-        path = updater.download_update(self._update_version, self._on_download_progress)
-        updater.launch_installer(path)
-        if self._cmd_queue:
-            self._cmd_queue.put('quit')
+        try:
+            path = updater.download_update(self._update_version, self._on_download_progress)
+            updater.launch_installer(path)
+            if self._cmd_queue:
+                self._cmd_queue.put('quit')
+        except Exception as e:
+            if self._window is not None:
+                self._window.after(0, lambda msg=str(e): self._on_download_error(msg))
+
+    def _on_download_error(self, msg: str) -> None:
+        self._update_btn.config(text='Atualizar agora', state='normal')
+        messagebox.showerror('MTK Noise Canceller', f'Falha no download:\n{msg}')
 
     def _on_download_progress(self, pct: int) -> None:
         if self._window is not None:
