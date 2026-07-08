@@ -18,7 +18,7 @@ MTK_DEVICE_NAME = "MTK Noise Canceller"
 CABLE_OUTPUT_NAME = "CABLE Output"
 
 _MM_DEVICES_CAPTURE = r'SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture'
-_PKEY_FRIENDLYNAME = '{a45c254e-df1c-4efd-8020-67d146a850e0},14'
+_PKEY_FRIENDLYNAME = '{a45c254e-df1c-4efd-8020-67d146a850e0},2'
 
 # EDataFlow
 eRender = 0
