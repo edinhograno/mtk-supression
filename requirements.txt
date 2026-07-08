@@ -4,3 +4,4 @@ noisereduce==3.0.3
 pedalboard==0.9.23
 pystray==0.19.5
 Pillow==12.2.0
+comtypes>=1.4
