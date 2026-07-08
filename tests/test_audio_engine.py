@@ -101,3 +101,23 @@ def test_stop_without_start_does_not_restore(mocker):
     e.stop()
 
     mock_set.assert_not_called()
+
+
+def test_restart_without_stop_does_not_overwrite_prev_default(mocker):
+    mocker.patch('virtual_device.get_default_capture_id', return_value='real-mic')
+    mocker.patch('virtual_device.find_device_id', return_value='mtk-id')
+    mock_set = mocker.patch('virtual_device.set_as_default_capture', return_value=True)
+
+    from importlib import reload
+    import audio_engine
+    reload(audio_engine)
+    e = audio_engine.AudioEngine()
+    mocker.patch.object(e, '_run')
+    e.start()  # saves 'real-mic' as _prev_default_id
+    # Simulate: thread died, _prev_default_id still set; now mock returns MTK as current default
+    mocker.patch('virtual_device.get_default_capture_id', return_value='mtk-id')
+    e.start()  # must NOT overwrite _prev_default_id
+    e.stop()
+
+    # Last restore call must be 'real-mic', not 'mtk-id'
+    assert mock_set.call_args_list[-1] == call('real-mic')

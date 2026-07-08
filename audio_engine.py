@@ -31,7 +31,8 @@ class AudioEngine:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
-        self._prev_default_id = virtual_device.get_default_capture_id()
+        if self._prev_default_id is None:
+            self._prev_default_id = virtual_device.get_default_capture_id()
         dev_id = virtual_device.find_device_id(virtual_device.MTK_DEVICE_NAME, capture=True)
         if dev_id:
             virtual_device.set_as_default_capture(dev_id)

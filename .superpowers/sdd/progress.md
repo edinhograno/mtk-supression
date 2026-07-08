@@ -43,9 +43,11 @@
 | Task | Descrição | Status | Commits | Notes |
 |------|-----------|--------|---------|-------|
 | 1 | virtual_device.py + requirements.txt + tests | complete | 971a616..b43061e | review clean; minor: CLSCTX_ALL unused, PropVariantClear leak on non-VT_LPWSTR (no-op in practice), loose SetValue assert |
-| 2 | Wire vbcable_setup.py + audio_engine.py + build.spec | pending | — | |
+| 2 | Wire vbcable_setup.py + audio_engine.py + build.spec | complete | b43061e..d3031dc | review clean; fix: reverted iss bump + untracked ico |
 
 ## Minor findings Task 1 (not blocking)
 - virtual_device.py: CLSCTX_ALL imported but unused
 - virtual_device.py _get_friendly_name: PropVariantClear not called on non-VT_LPWSTR path (safe in practice)
 - test_virtual_device.py test_rename_cable_output_calls_set_value_and_commit: SetValue args not verified
+
+Task 2 fix: d3031dc — reverted mtk.iss 1.1.1→1.1.0, untracked pin_in.ico + pin_out.ico
