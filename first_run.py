@@ -93,7 +93,7 @@ def _show_install_error():
 
 
 def _set_autostart(enable: bool):
-    exe = sys.argv[0]
+    exe = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
         if enable:
             winreg.SetValueEx(key, _APP_NAME, 0, winreg.REG_SZ, f'"{exe}"')
