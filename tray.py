@@ -60,6 +60,6 @@ class TrayApp:
 
     def _quit(self):
         self._engine.stop()
+        self._on_quit()
         if self._icon:
             self._icon.stop()
-        self._on_quit()

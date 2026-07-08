@@ -48,6 +48,7 @@ class SettingsUI:
         self._update_frame = None
         self._update_btn = None
         self._update_label = None
+        self._pending_check: int | None = None
 
     def request_show(self):
         """Thread-safe: enqueue show command."""
@@ -200,18 +201,21 @@ class SettingsUI:
 
     def _toggle(self):
         if self._engine.is_running():
+            if self._pending_check is not None:
+                self._window.after_cancel(self._pending_check)
+                self._pending_check = None
             self._engine.stop()
             self._config.set('active', False)
         else:
             self._engine.start()
             self._config.set('active', True)
-            # Give thread time to fail if stream can't open
-            self._window.after(800, self._check_engine_started)
+            self._pending_check = self._window.after(800, self._check_engine_started)
         self._config.save()
         self._refresh_status()
         self._refresh_btn()
 
     def _check_engine_started(self):
+        self._pending_check = None
         if not self._engine.is_running():
             err = self._engine.get_last_error() or 'Erro desconhecido'
             messagebox.showerror('MTK Noise Canceller', f'Falha ao iniciar áudio:\n{err}')

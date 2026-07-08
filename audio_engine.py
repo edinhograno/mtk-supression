@@ -42,7 +42,7 @@ class AudioEngine:
     def stop(self):
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=2.0)
+            self._thread.join(timeout=0.5)
         self._thread = None
         if self._prev_default_id:
             virtual_device.set_as_default_capture(self._prev_default_id)
