@@ -5,6 +5,7 @@ import tempfile
 import urllib.request
 import zipfile
 import sounddevice as sd
+import virtual_device
 
 INSTALLER_NAME = 'VBCABLE_Setup_x64.exe'
 _DOWNLOAD_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip'
@@ -80,4 +81,9 @@ def install(progress_callback=None) -> bool:
         capture_output=True,
         timeout=120,
     )
-    return result.returncode == 0
+    if result.returncode == 0:
+        if progress_callback:
+            progress_callback('Configurando dispositivo de áudio...')
+        virtual_device.rename_cable_output()
+        return True
+    return False

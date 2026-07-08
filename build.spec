@@ -19,6 +19,8 @@ a = Analysis(
         *sounddevice_datas,
     ],
     hiddenimports=[
+        'comtypes',
+        'comtypes.client',
         'pedalboard',
         'pedalboard.pedalboard',
         'pedalboard._pedalboard',

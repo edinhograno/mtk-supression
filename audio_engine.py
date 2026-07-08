@@ -2,6 +2,7 @@ import logging
 import threading
 import sounddevice as sd
 from noise_filter import NoiseFilter
+import virtual_device
 
 SAMPLE_RATE = 48000
 CHUNK_FRAMES = 960  # 20ms at 48kHz
@@ -15,6 +16,7 @@ class AudioEngine:
         self._input_device = None
         self._intensity = 0.75
         self._last_error = None
+        self._prev_default_id: str | None = None
 
     def get_last_error(self) -> str | None:
         return self._last_error
@@ -29,6 +31,10 @@ class AudioEngine:
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
+        self._prev_default_id = virtual_device.get_default_capture_id()
+        dev_id = virtual_device.find_device_id(virtual_device.MTK_DEVICE_NAME, capture=True)
+        if dev_id:
+            virtual_device.set_as_default_capture(dev_id)
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
@@ -37,6 +43,9 @@ class AudioEngine:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         self._thread = None
+        if self._prev_default_id:
+            virtual_device.set_as_default_capture(self._prev_default_id)
+            self._prev_default_id = None
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
