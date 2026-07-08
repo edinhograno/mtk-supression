@@ -210,7 +210,7 @@ def _create_policy_config():
     for cls in (_IPolicyConfig_Win10, _IPolicyConfig_Alt, _IPolicyConfig_Win7):
         try:
             return comtypes.client.CreateObject(CLSID_PolicyConfigClient, interface=cls)
-        except comtypes.COMError:
+        except (comtypes.COMError, OSError):
             continue
     return None
 
@@ -229,7 +229,7 @@ def find_device_id(name_fragment: str, capture: bool = True) -> str | None:
             name = _get_friendly_name(device)
             if name and name_fragment in name:
                 return device.GetId()
-    except comtypes.COMError as exc:
+    except (comtypes.COMError, OSError) as exc:
         log.warning("find_device_id(%r) failed: %s", name_fragment, exc)
     return None
 
@@ -240,7 +240,7 @@ def get_default_capture_id() -> str | None:
         enum = _create_enumerator()
         device = enum.GetDefaultAudioEndpoint(eCapture, eConsole)
         return device.GetId()
-    except comtypes.COMError as exc:
+    except (comtypes.COMError, OSError) as exc:
         log.warning("get_default_capture_id failed: %s", exc)
     return None
 
@@ -321,6 +321,6 @@ def set_as_default_capture(endpoint_id: str) -> bool:
         for role in (eConsole, eMultimedia, eCommunications):
             pc.SetDefaultEndpoint(endpoint_id, role)
         return True
-    except comtypes.COMError as exc:
+    except (comtypes.COMError, OSError) as exc:
         log.warning("set_as_default_capture(%r) failed: %s", endpoint_id, exc)
     return False
