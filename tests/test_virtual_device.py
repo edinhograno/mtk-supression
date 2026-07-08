@@ -96,35 +96,29 @@ def test_rename_cable_output_false_when_cable_absent(mocker):
     import virtual_device
     reload(virtual_device)
 
-    mock_collection = MagicMock()
-    mock_collection.GetCount.return_value = 0
-    mock_enum = MagicMock()
-    mock_enum.EnumAudioEndpoints.return_value = mock_collection
-    mocker.patch("comtypes.client.CreateObject", return_value=mock_enum)
+    mocker.patch("winreg.OpenKey", return_value=MagicMock())
+    mocker.patch("winreg.EnumKey", side_effect=OSError)
 
     assert virtual_device.rename_cable_output() is False
 
 
 def test_rename_cable_output_calls_set_value_and_commit(mocker):
     from importlib import reload
+    import winreg as _wr
     import virtual_device
     reload(virtual_device)
 
-    mock_store = MagicMock()
-    mock_device = MagicMock()
-    mock_device.OpenPropertyStore.return_value = mock_store
-    mock_collection = MagicMock()
-    mock_collection.GetCount.return_value = 1
-    mock_collection.Item.return_value = mock_device
-    mock_enum = MagicMock()
-    mock_enum.EnumAudioEndpoints.return_value = mock_collection
-    mocker.patch("comtypes.client.CreateObject", return_value=mock_enum)
-    mocker.patch("virtual_device._get_friendly_name", return_value="CABLE Output")
+    mocker.patch("winreg.OpenKey", return_value=MagicMock())
+    mocker.patch("winreg.EnumKey", side_effect=["some-guid", OSError()])
+    mocker.patch("winreg.QueryValueEx", return_value=("CABLE Output", _wr.REG_SZ))
+    mock_set = mocker.patch("winreg.SetValueEx")
 
     result = virtual_device.rename_cable_output()
     assert result is True
-    mock_store.SetValue.assert_called_once()
-    mock_store.Commit.assert_called_once()
+    mock_set.assert_called_once()
+    _, _, _, regtype, value = mock_set.call_args[0]
+    assert regtype == _wr.REG_SZ
+    assert value == "MTK Noise Canceller"
 
 
 def test_set_as_default_capture_sets_all_three_roles(mocker):

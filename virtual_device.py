@@ -5,6 +5,9 @@ from ctypes import (
 )
 from ctypes.wintypes import BOOL, DWORD, LPWSTR
 
+import struct
+import winreg
+
 import comtypes
 import comtypes.client
 from comtypes import CLSCTX_ALL, GUID, HRESULT, IUnknown, COMMETHOD
@@ -13,6 +16,9 @@ log = logging.getLogger(__name__)
 
 MTK_DEVICE_NAME = "MTK Noise Canceller"
 CABLE_OUTPUT_NAME = "CABLE Output"
+
+_MM_DEVICES_CAPTURE = r'SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture'
+_PKEY_FRIENDLYNAME = '{a45c254e-df1c-4efd-8020-67d146a850e0},14'
 
 # EDataFlow
 eRender = 0
@@ -190,8 +196,7 @@ def _create_enumerator() -> IMMDeviceEnumerator:
 def _get_friendly_name(device: IMMDevice) -> str | None:
     try:
         store = device.OpenPropertyStore(STGM_READ)
-        pv = PROPVARIANT()
-        store.GetValue(byref(PKEY_Device_FriendlyName), byref(pv))
+        pv = store.GetValue(byref(PKEY_Device_FriendlyName))
         if pv.vt == VT_LPWSTR and pv._u.pwszVal:
             name = pv._u.pwszVal
             windll.ole32.PropVariantClear(byref(pv))
@@ -240,30 +245,64 @@ def get_default_capture_id() -> str | None:
     return None
 
 
+def _propvariant_to_str(raw, regtype: int) -> str | None:
+    if regtype == winreg.REG_SZ:
+        return raw
+    if regtype == winreg.REG_BINARY and len(raw) >= 10:
+        vt = struct.unpack_from('<H', raw, 0)[0]
+        if vt == VT_LPWSTR:
+            try:
+                return raw[8:].decode('utf-16-le').rstrip('\x00')
+            except Exception:
+                pass
+    return None
+
+
+def _str_to_propvariant(name: str, regtype: int):
+    if regtype == winreg.REG_SZ:
+        return name
+    encoded = name.encode('utf-16-le') + b'\x00\x00'
+    return struct.pack('<HHHH', VT_LPWSTR, 0, 0, 0) + encoded
+
+
 def rename_cable_output(new_name: str = MTK_DEVICE_NAME) -> bool:
     """
     Rename the capture endpoint whose name contains CABLE_OUTPUT_NAME.
-    Requires admin (IPropertyStore STGM_READWRITE on HKLM-backed endpoint).
+    Writes directly to HKLM MMDevices registry (requires admin).
     Returns True on success, False on any failure (logged as warning).
     """
     try:
-        enum = _create_enumerator()
-        collection = enum.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
-        count = collection.GetCount()
-        for i in range(count):
-            device = collection.Item(i)
-            name = _get_friendly_name(device)
-            if name and CABLE_OUTPUT_NAME in name:
-                store = device.OpenPropertyStore(STGM_READWRITE)
-                pv = PROPVARIANT()
-                pv.vt = VT_LPWSTR
-                pv._u.pwszVal = new_name
-                store.SetValue(byref(PKEY_Device_FriendlyName), byref(pv))
-                store.Commit()
-                log.info("Renamed audio device '%s' -> '%s'", name, new_name)
-                return True
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _MM_DEVICES_CAPTURE) as root:
+            i = 0
+            while True:
+                try:
+                    guid = winreg.EnumKey(root, i)
+                except OSError:
+                    break
+                props_path = f'{_MM_DEVICES_CAPTURE}\\{guid}\\Properties'
+                try:
+                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, props_path) as props:
+                        try:
+                            raw, regtype = winreg.QueryValueEx(props, _PKEY_FRIENDLYNAME)
+                            current = _propvariant_to_str(raw, regtype)
+                            if current and CABLE_OUTPUT_NAME in current:
+                                with winreg.OpenKey(
+                                    winreg.HKEY_LOCAL_MACHINE, props_path,
+                                    0, winreg.KEY_SET_VALUE
+                                ) as w:
+                                    winreg.SetValueEx(
+                                        w, _PKEY_FRIENDLYNAME, 0, regtype,
+                                        _str_to_propvariant(new_name, regtype)
+                                    )
+                                log.info("Renamed audio device '%s' -> '%s'", current, new_name)
+                                return True
+                        except FileNotFoundError:
+                            pass
+                except OSError:
+                    pass
+                i += 1
         log.warning("rename_cable_output: device containing '%s' not found", CABLE_OUTPUT_NAME)
-    except comtypes.COMError as exc:
+    except OSError as exc:
         log.warning("rename_cable_output failed: %s", exc)
     return False
 
