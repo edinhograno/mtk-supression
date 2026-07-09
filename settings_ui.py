@@ -116,6 +116,10 @@ class SettingsUI:
         self._refresh_btn()
 
     def _build(self):
+        card   = style.COLOR_CARD_DARK   if self._dark else style.COLOR_CARD
+        border = style.COLOR_BORDER_DARK if self._dark else style.COLOR_BORDER
+        muted  = style.COLOR_MUTED_DARK  if self._dark else style.COLOR_MUTED
+
         win = _SettingsWindow()
         win.setWindowTitle('MTK Noise Canceller')
         win.setFixedSize(340, 300)
@@ -165,15 +169,15 @@ class SettingsUI:
         # ── Mic card ──
         mic_card = QFrame()
         mic_card.setStyleSheet(
-            f'QFrame {{ background: {style.COLOR_CARD}; border-radius: 8px;'
-            f' border: 1px solid {style.COLOR_BORDER}; }}'
+            f'QFrame {{ background: {card}; border-radius: 8px;'
+            f' border: 1px solid {border}; }}'
         )
         mic_col = QVBoxLayout(mic_card)
         mic_col.setContentsMargins(14, 10, 14, 10)
         mic_col.setSpacing(3)
         mic_lbl = QLabel('MICROFONE')
         mic_lbl.setStyleSheet(
-            f'color: {style.COLOR_MUTED}; font-size: 10px; font-weight: 600;'
+            f'color: {muted}; font-size: 10px; font-weight: 600;'
             ' letter-spacing: 0.5px; border: none; background: transparent;'
         )
         mic_col.addWidget(mic_lbl)
@@ -198,8 +202,8 @@ class SettingsUI:
         # ── Intensity card ──
         int_card = QFrame()
         int_card.setStyleSheet(
-            f'QFrame {{ background: {style.COLOR_CARD}; border-radius: 8px;'
-            f' border: 1px solid {style.COLOR_BORDER}; }}'
+            f'QFrame {{ background: {card}; border-radius: 8px;'
+            f' border: 1px solid {border}; }}'
         )
         int_col = QVBoxLayout(int_card)
         int_col.setContentsMargins(14, 10, 14, 10)
@@ -208,7 +212,7 @@ class SettingsUI:
         int_header = QHBoxLayout()
         int_lbl = QLabel('INTENSIDADE')
         int_lbl.setStyleSheet(
-            f'color: {style.COLOR_MUTED}; font-size: 10px; font-weight: 600;'
+            f'color: {muted}; font-size: 10px; font-weight: 600;'
             ' letter-spacing: 0.5px; border: none; background: transparent;'
         )
         self._pct_label = QLabel(f"{int(self._config.get('intensity', 0.75) * 100)}%")
