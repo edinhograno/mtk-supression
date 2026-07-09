@@ -1,4 +1,20 @@
 import sys
+import traceback
+from pathlib import Path
+
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    log_dir = Path.home() / '.mtk-noise-canceller'
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with open(log_dir / 'crash.log', 'w', encoding='utf-8') as f:
+            traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
+    except Exception:
+        pass
+
+
+sys.excepthook = _excepthook
+
 import queue
 import time
 import threading
