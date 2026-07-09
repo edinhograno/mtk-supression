@@ -1,19 +1,33 @@
 import sys
 import threading
 import winreg
-import tkinter as tk
-from tkinter import messagebox
+
+from PySide6.QtWidgets import (
+    QApplication, QDialog, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QProgressBar,
+)
+from PySide6.QtCore import Qt, QObject, Signal
+from PySide6.QtGui import QFont
 
 import vbcable_setup
 from config import Config
+import style
 
 _APP_NAME = 'MTKNoiseCanceller'
 _RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
 
 
+class _InstallSignals(QObject):
+    progress = Signal(str)
+    done = Signal(bool)
+
+
 def run_if_needed(config: Config) -> bool:
     if not config.get('first_run', True):
         return True
+
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setStyleSheet(style.app_stylesheet())
 
     if not vbcable_setup.is_installed():
         if not _ask_install_vbcable():
@@ -31,65 +45,140 @@ def run_if_needed(config: Config) -> bool:
     return True
 
 
-def _install_with_progress() -> bool:
+def _ask_install_vbcable() -> bool:
+    dlg = QDialog()
+    dlg.setWindowTitle('MTK Noise Canceller')
+    dlg.setFixedSize(400, 260)
+    dlg.setModal(True)
+
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(30, 30, 30, 30)
+    layout.setSpacing(16)
+
+    ear = QLabel('👂')
+    ear.setFont(QFont('Segoe UI', 48))
+    ear.setAlignment(Qt.AlignCenter)
+    layout.addWidget(ear)
+
+    title = QLabel('MTK Noise Canceller')
+    f = QFont('Segoe UI', 14)
+    f.setBold(True)
+    title.setFont(f)
+    title.setAlignment(Qt.AlignCenter)
+    layout.addWidget(title)
+
+    body = QLabel(
+        'Bem-vindo! Precisamos instalar o VB-Cable para processar o áudio.\n\n'
+        'O driver será baixado e instalado automaticamente (~5 MB).'
+    )
+    body.setWordWrap(True)
+    body.setAlignment(Qt.AlignCenter)
+    layout.addWidget(body)
+
+    btns = QHBoxLayout()
+    cancel = QPushButton('Cancelar')
+    ok_btn = QPushButton('Continuar')
+    ok_btn.setDefault(True)
+    btns.addWidget(cancel)
+    btns.addWidget(ok_btn)
+    layout.addLayout(btns)
+
     result = [False]
-    root = tk.Tk()
-    root.title('MTK Noise Canceller')
-    root.resizable(False, False)
-    root.geometry('340x90')
-
-    label_var = tk.StringVar(value='Iniciando...')
-    tk.Label(root, textvariable=label_var, padx=20, pady=10).pack()
-    bar_var = tk.StringVar(value='')
-    tk.Label(root, textvariable=bar_var, fg='gray').pack()
-
-    def progress(msg: str):
-        label_var.set(msg)
-        root.update_idletasks()
-
-    def worker():
-        result[0] = vbcable_setup.install(progress_callback=progress)
-        root.after(0, root.destroy)
-
-    threading.Thread(target=worker, daemon=True).start()
-    root.mainloop()
+    cancel.clicked.connect(dlg.reject)
+    ok_btn.clicked.connect(lambda: (result.__setitem__(0, True), dlg.accept()))
+    dlg.exec()
     return result[0]
 
 
-def _ask_install_vbcable() -> bool:
-    root = tk.Tk()
-    root.withdraw()
-    result = messagebox.askyesno(
-        'MTK Noise Canceller',
-        'Este app precisa instalar um driver de áudio virtual (VB-Cable) para funcionar.\n\n'
-        'O driver será baixado e instalado automaticamente (~5 MB).\n\n'
-        'Deseja instalar agora?',
-    )
-    root.destroy()
-    return result
+def _install_with_progress() -> bool:
+    dlg = QDialog()
+    dlg.setWindowTitle('MTK Noise Canceller')
+    dlg.setFixedSize(400, 160)
+    dlg.setModal(True)
+    dlg.closeEvent = lambda e: e.ignore()
+
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(30, 30, 30, 30)
+    layout.setSpacing(12)
+
+    status_lbl = QLabel('Iniciando...')
+    status_lbl.setAlignment(Qt.AlignCenter)
+    layout.addWidget(status_lbl)
+
+    bar = QProgressBar()
+    bar.setRange(0, 0)
+    layout.addWidget(bar)
+
+    result = [False]
+    sig = _InstallSignals()
+    sig.progress.connect(status_lbl.setText)
+    sig.done.connect(lambda ok: (result.__setitem__(0, ok), dlg.accept()))
+
+    def worker():
+        ok = vbcable_setup.install(progress_callback=sig.progress.emit)
+        sig.done.emit(ok)
+
+    threading.Thread(target=worker, daemon=True).start()
+    dlg.exec()
+    return result[0]
 
 
 def _ask_autostart() -> bool:
-    root = tk.Tk()
-    root.withdraw()
-    result = messagebox.askyesno(
-        'MTK Noise Canceller',
-        'Deseja que o app inicie automaticamente com o Windows?',
+    dlg = QDialog()
+    dlg.setWindowTitle('MTK Noise Canceller')
+    dlg.setFixedSize(400, 180)
+    dlg.setModal(True)
+
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(30, 30, 30, 30)
+    layout.setSpacing(16)
+
+    body = QLabel(
+        'Deseja que o MTK Noise Canceller\ninicialize automaticamente com o Windows?'
     )
-    root.destroy()
-    return result
+    body.setAlignment(Qt.AlignCenter)
+    body.setWordWrap(True)
+    layout.addWidget(body)
+
+    btns = QHBoxLayout()
+    no_btn = QPushButton('Não')
+    yes_btn = QPushButton('Sim')
+    yes_btn.setDefault(True)
+    btns.addWidget(no_btn)
+    btns.addWidget(yes_btn)
+    layout.addLayout(btns)
+
+    result = [False]
+    no_btn.clicked.connect(dlg.reject)
+    yes_btn.clicked.connect(lambda: (result.__setitem__(0, True), dlg.accept()))
+    dlg.exec()
+    return result[0]
 
 
 def _show_install_error():
-    root = tk.Tk()
-    root.withdraw()
-    messagebox.showerror(
-        'MTK Noise Canceller',
+    dlg = QDialog()
+    dlg.setWindowTitle('MTK Noise Canceller')
+    dlg.setFixedSize(400, 180)
+    dlg.setModal(True)
+
+    layout = QVBoxLayout(dlg)
+    layout.setContentsMargins(30, 30, 30, 30)
+    layout.setSpacing(16)
+
+    body = QLabel(
         'Falha ao instalar VB-Cable.\n\n'
         'Verifique sua conexão com a internet e tente novamente.\n'
-        'Se o problema persistir, execute o app como administrador.',
+        'Se o problema persistir, execute o app como administrador.'
     )
-    root.destroy()
+    body.setWordWrap(True)
+    body.setAlignment(Qt.AlignCenter)
+    layout.addWidget(body)
+
+    close_btn = QPushButton('Fechar')
+    close_btn.clicked.connect(dlg.accept)
+    layout.addWidget(close_btn, alignment=Qt.AlignCenter)
+
+    dlg.exec()
 
 
 def _set_autostart(enable: bool):
