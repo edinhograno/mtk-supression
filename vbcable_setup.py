@@ -5,7 +5,6 @@ import tempfile
 import urllib.request
 import zipfile
 import sounddevice as sd
-import virtual_device
 
 INSTALLER_NAME = 'VBCABLE_Setup_x64.exe'
 _DOWNLOAD_URL = 'https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack43.zip'
@@ -70,20 +69,37 @@ def install(progress_callback=None) -> bool:
     if progress_callback:
         progress_callback('Instalando driver VB-Cable...')
 
+    exe = sys.executable
     cwd = os.path.dirname(installer)
-    ps_cmd = (
+    ps1 = (
         f'$p = Start-Process -FilePath "{installer}" -ArgumentList "/S"'
-        f' -Verb RunAs -Wait -WorkingDirectory "{cwd}" -PassThru;'
-        f' exit $p.ExitCode'
+        f' -Wait -WorkingDirectory "{cwd}" -PassThru\n'
+        f'if ($p.ExitCode -eq 0) {{\n'
+        f'    Start-Sleep -Milliseconds 1500\n'
+        f'    & "{exe}" --rename-device\n'
+        f'}}\n'
+        f'exit $p.ExitCode\n'
     )
-    result = subprocess.run(
-        ['powershell', '-NoProfile', '-Command', ps_cmd],
-        capture_output=True,
-        timeout=120,
-    )
-    if result.returncode == 0:
-        if progress_callback:
-            progress_callback('Configurando dispositivo de áudio...')
-        virtual_device.rename_cable_output()
-        return True
-    return False
+
+    ps_file = os.path.join(tempfile.gettempdir(), 'mtk_rename.ps1')
+    with open(ps_file, 'w', encoding='utf-8') as f:
+        f.write(ps1)
+
+    try:
+        subprocess.run(
+            ['powershell', '-NoProfile', '-Command',
+             'Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden '
+             f'-ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "{ps_file}")'],
+            capture_output=True,
+            timeout=180,
+        )
+    finally:
+        try:
+            os.unlink(ps_file)
+        except OSError:
+            pass
+
+    if progress_callback:
+        progress_callback('Configurando dispositivo de áudio...')
+
+    return is_installed()

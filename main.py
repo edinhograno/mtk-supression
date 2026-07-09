@@ -20,6 +20,11 @@ def _update_check_loop(ui: SettingsUI) -> None:
 
 
 def main():
+    if '--rename-device' in sys.argv:
+        import virtual_device
+        virtual_device.rename_cable_output()
+        sys.exit(0)
+
     config = Config()
     engine = AudioEngine()
 
