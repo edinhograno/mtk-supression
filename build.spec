@@ -8,15 +8,18 @@ pedalboard_datas = collect_data_files('pedalboard')
 pedalboard_binaries = collect_dynamic_libs('pedalboard')
 sounddevice_datas = collect_data_files('sounddevice')
 sounddevice_binaries = collect_dynamic_libs('sounddevice')
+pyside6_datas = collect_data_files('PySide6')
+pyside6_binaries = collect_dynamic_libs('PySide6')
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[*pedalboard_binaries, *sounddevice_binaries],
+    binaries=[*pedalboard_binaries, *sounddevice_binaries, *pyside6_binaries],
     datas=[
         ('assets/icon.ico', 'assets'),
         *pedalboard_datas,
         *sounddevice_datas,
+        *pyside6_datas,
     ],
     hiddenimports=[
         'comtypes',
@@ -34,14 +37,15 @@ a = Analysis(
         'PIL.ImageDraw',
         'PIL.IcoImagePlugin',
         'queue',
-        'tkinter',
-        'tkinter.ttk',
-        'tkinter.messagebox',
+        'PySide6',
+        'PySide6.QtWidgets',
+        'PySide6.QtCore',
+        'PySide6.QtGui',
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['noisereduce', 'librosa', 'scipy', 'matplotlib'],
+    excludes=['noisereduce', 'librosa', 'scipy', 'matplotlib', 'tkinter'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

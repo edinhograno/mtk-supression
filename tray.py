@@ -9,8 +9,26 @@ from audio_engine import AudioEngine
 def _make_icon(active: bool) -> Image.Image:
     img = Image.new('RGBA', (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    color = (0, 180, 0, 255) if active else (180, 0, 0, 255)
-    draw.ellipse([8, 8, 56, 56], fill=color)
+    c = (26, 122, 54, 255) if active else (192, 57, 43, 255)
+    w = 4
+
+    # Outer ear rim — open arc (C-shape, opening on the left)
+    draw.arc([14, 8, 50, 52], start=210, end=330, fill=c, width=w)
+    # Left side vertical connector (closes the C)
+    draw.line([(15, 28), (15, 38)], fill=c, width=w)
+    # Earlobe — small filled ellipse at bottom
+    draw.ellipse([24, 48, 40, 60], fill=c)
+
+    # Inner helix — smaller concentric arc
+    draw.arc([22, 16, 42, 38], start=210, end=350, fill=c, width=3)
+
+    # Ear canal — small filled dot
+    draw.ellipse([28, 30, 36, 38], fill=c)
+
+    if not active:
+        # Diagonal slash overlay
+        draw.line([(12, 12), (52, 52)], fill=(192, 57, 43, 178), width=w)
+
     return img
 
 
