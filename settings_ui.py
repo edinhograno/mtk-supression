@@ -2,18 +2,27 @@ import sys
 import queue
 import threading
 import winreg
-import tkinter as tk
-from tkinter import ttk, messagebox
+
+from PySide6.QtWidgets import (
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QComboBox, QSlider, QCheckBox,
+    QFrame, QMessageBox,
+)
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont
 import sounddevice as sd
 
 from config import Config
 from audio_engine import AudioEngine
+import style
 
 _APP_NAME = 'MTKNoiseCanceller'
+_RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
+_POLL_MS = 100
 
 
 def _query_input_devices() -> list[tuple[int, str]]:
-    """Return (index, name) pairs for input devices, preferring MME for compatibility."""
+    """Return (index, name) pairs for input devices, preferring MME."""
     all_devices = list(enumerate(sd.query_devices()))
     try:
         hostapis = sd.query_hostapis()
@@ -32,8 +41,6 @@ def _query_input_devices() -> list[tuple[int, str]]:
         (i, d['name']) for i, d in all_devices
         if d['max_input_channels'] > 0 and 'CABLE' not in d['name']
     ]
-_RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
-_POLL_MS = 100
 
 
 class SettingsUI:
@@ -41,14 +48,18 @@ class SettingsUI:
         self._config = config
         self._engine = engine
         self._show_on_start = show_on_start
-        self._window = None
-        self._cmd_queue = None
+        self._win: QWidget | None = None
+        self._cmd_queue: queue.Queue | None = None
         self._pending_update_version: str | None = None
         self._update_version: str | None = None
-        self._update_frame = None
-        self._update_btn = None
-        self._update_label = None
-        self._pending_check: int | None = None
+        self._poll_timer: QTimer | None = None
+        self._update_frame: QFrame | None = None
+        self._update_btn: QPushButton | None = None
+        self._update_label: QLabel | None = None
+        self._power_btn: QPushButton | None = None
+        self._status_label: QLabel | None = None
+        self._pct_label: QLabel | None = None
+        self._slider: QSlider | None = None
 
     def request_show(self):
         """Thread-safe: enqueue show command."""
@@ -61,11 +72,17 @@ class SettingsUI:
             self._cmd_queue.put('quit')
 
     def run_main_loop(self, cmd_queue: queue.Queue):
-        """Build window (hidden), poll cmd_queue, run mainloop. CALL FROM MAIN THREAD ONLY."""
+        """Build window, poll cmd_queue, run Qt event loop. CALL FROM MAIN THREAD ONLY."""
         self._cmd_queue = cmd_queue
+        app = QApplication.instance() or QApplication(sys.argv)
+        app.setStyleSheet(style.app_stylesheet())
         self._build()
-        self._window.after(_POLL_MS, self._poll)
-        self._window.mainloop()
+        if self._show_on_start:
+            self._win.show()
+        self._poll_timer = QTimer()
+        self._poll_timer.timeout.connect(self._poll)
+        self._poll_timer.start(_POLL_MS)
+        app.exec()
 
     def _poll(self):
         try:
@@ -75,95 +92,150 @@ class SettingsUI:
                     self._show_window()
                 elif cmd == 'quit':
                     self._engine.stop()
-                    self._window.destroy()
+                    app = QApplication.instance()
+                    if app:
+                        app.quit()
                     return
         except queue.Empty:
             pass
-        self._window.after(_POLL_MS, self._poll)
 
     def _show_window(self):
-        self._window.deiconify()
-        self._window.lift()
-        self._window.focus_force()
+        self._win.show()
+        self._win.raise_()
+        self._win.activateWindow()
         self._refresh_status()
         self._refresh_btn()
 
     def _build(self):
-        win = tk.Tk()
-        win.title('MTK Noise Canceller')
-        win.resizable(False, False)
-        win.protocol('WM_DELETE_WINDOW', win.withdraw)
-        win.update_idletasks()
-        sw = win.winfo_screenwidth()
-        sh = win.winfo_screenheight()
-        w = win.winfo_reqwidth()
-        h = win.winfo_reqheight()
-        win.geometry(f'+{(sw - w) // 2}+{(sh - h) // 2}')
+        win = QWidget()
+        win.setWindowTitle('MTK Noise Canceller')
+        win.setFixedSize(340, 300)
+        win.closeEvent = lambda e: (e.ignore(), win.hide())
+        self._win = win
 
-        if not self._show_on_start:
-            win.withdraw()  # start hidden — shown on demand via request_show()
-        self._window = win
+        root = QVBoxLayout(win)
+        root.setContentsMargins(20, 20, 20, 20)
+        root.setSpacing(8)
 
-        frame = ttk.Frame(win, padding=16)
-        frame.grid()
-
-        # Update banner — hidden until a newer version is found
-        self._update_frame = ttk.Frame(frame, padding=(0, 0, 0, 4))
-        self._update_label = ttk.Label(self._update_frame, text='', foreground='darkgreen')
-        self._update_label.grid(row=0, column=0, padx=(0, 8))
-        self._update_btn = ttk.Button(
-            self._update_frame, text='Atualizar agora', command=self._on_update_click
+        # ── Update banner (hidden by default) ──
+        self._update_frame = QFrame()
+        self._update_frame.setStyleSheet(
+            'QFrame { background: #e6f4ea; border-radius: 6px; }'
         )
-        self._update_btn.grid(row=0, column=1)
-        self._update_frame.grid(row=0, column=0, columnspan=3, sticky='ew')
-        self._update_frame.grid_remove()
+        banner_row = QHBoxLayout(self._update_frame)
+        banner_row.setContentsMargins(8, 6, 8, 6)
+        self._update_label = QLabel()
+        self._update_label.setStyleSheet(
+            f'color: {style.COLOR_ACTIVE}; font-weight: 700; background: transparent;'
+        )
+        self._update_btn = QPushButton('Atualizar agora')
+        self._update_btn.clicked.connect(self._on_update_click)
+        banner_row.addWidget(self._update_label)
+        banner_row.addStretch()
+        banner_row.addWidget(self._update_btn)
+        self._update_frame.setVisible(False)
+        root.addWidget(self._update_frame)
 
-        # Mic selector
-        ttk.Label(frame, text='Microfone:').grid(row=1, column=0, sticky='w', pady=4)
+        # ── Power button ──
+        power_col = QVBoxLayout()
+        power_col.setAlignment(Qt.AlignCenter)
+        self._power_btn = QPushButton('👂')
+        self._power_btn.setFixedSize(64, 64)
+        self._power_btn.setFont(QFont('Segoe UI', 22))
+        self._power_btn.clicked.connect(self._toggle)
+        power_col.addWidget(self._power_btn, alignment=Qt.AlignCenter)
+
+        self._status_label = QLabel()
+        self._status_label.setAlignment(Qt.AlignCenter)
+        lbl_font = QFont('Segoe UI', 11)
+        lbl_font.setBold(True)
+        self._status_label.setFont(lbl_font)
+        power_col.addWidget(self._status_label)
+        root.addLayout(power_col)
+
+        # ── Mic card ──
+        mic_card = QFrame()
+        mic_card.setStyleSheet(
+            f'QFrame {{ background: {style.COLOR_CARD}; border-radius: 8px;'
+            f' border: 1px solid {style.COLOR_BORDER}; }}'
+        )
+        mic_col = QVBoxLayout(mic_card)
+        mic_col.setContentsMargins(14, 10, 14, 10)
+        mic_col.setSpacing(3)
+        mic_lbl = QLabel('MICROFONE')
+        mic_lbl.setStyleSheet(
+            f'color: {style.COLOR_MUTED}; font-size: 10px; font-weight: 600;'
+            ' letter-spacing: 0.5px; border: none; background: transparent;'
+        )
+        mic_col.addWidget(mic_lbl)
+
         device_pairs = _query_input_devices()
         self._device_index_map = {name: idx for idx, name in device_pairs}
         device_names = [name for _, name in device_pairs]
         saved_idx = self._config.get('input_device_index')
-        saved_name = next((name for idx, name in device_pairs if idx == saved_idx), device_names[0] if device_names else '')
-        self._mic_var = tk.StringVar(value=saved_name)
-        mic_cb = ttk.Combobox(frame, textvariable=self._mic_var, values=device_names, width=55, state='readonly')
-        mic_cb.grid(row=1, column=1, columnspan=2, pady=4, sticky='w')
-        mic_cb.bind('<<ComboboxSelected>>', self._on_mic_change)
+        saved_name = next(
+            (name for idx, name in device_pairs if idx == saved_idx),
+            device_names[0] if device_names else '',
+        )
+        self._mic_cb = QComboBox()
+        self._mic_cb.addItems(device_names)
+        if saved_name in device_names:
+            self._mic_cb.setCurrentText(saved_name)
+        self._mic_cb.setStyleSheet('border: none; background: transparent;')
+        self._mic_cb.currentTextChanged.connect(self._on_mic_change)
+        mic_col.addWidget(self._mic_cb)
+        root.addWidget(mic_card)
 
-        # Intensity slider
-        ttk.Label(frame, text='Intensidade:').grid(row=2, column=0, sticky='w', pady=4)
-        self._intensity_var = tk.DoubleVar(value=self._config.get('intensity', 0.75) * 100)
-        slider = ttk.Scale(frame, from_=0, to=100, variable=self._intensity_var, orient='horizontal', length=200)
-        slider.grid(row=2, column=1, pady=4)
-        slider.bind('<ButtonRelease-1>', self._on_intensity_change)
-        self._pct_label = ttk.Label(frame, text=f"{int(self._intensity_var.get())}%", width=5)
-        self._pct_label.grid(row=2, column=2, sticky='w')
-        self._intensity_var.trace_add('write', self._update_pct_label)
+        # ── Intensity card ──
+        int_card = QFrame()
+        int_card.setStyleSheet(
+            f'QFrame {{ background: {style.COLOR_CARD}; border-radius: 8px;'
+            f' border: 1px solid {style.COLOR_BORDER}; }}'
+        )
+        int_col = QVBoxLayout(int_card)
+        int_col.setContentsMargins(14, 10, 14, 10)
+        int_col.setSpacing(3)
 
-        # Autostart checkbox
-        self._autostart_var = tk.BooleanVar(value=self._config.get('autostart', False))
-        ttk.Checkbutton(
-            frame, text='Iniciar com Windows',
-            variable=self._autostart_var, command=self._on_autostart_change,
-        ).grid(row=3, column=0, columnspan=3, sticky='w', pady=4)
+        int_header = QHBoxLayout()
+        int_lbl = QLabel('INTENSIDADE')
+        int_lbl.setStyleSheet(
+            f'color: {style.COLOR_MUTED}; font-size: 10px; font-weight: 600;'
+            ' letter-spacing: 0.5px; border: none; background: transparent;'
+        )
+        self._pct_label = QLabel(f"{int(self._config.get('intensity', 0.75) * 100)}%")
+        self._pct_label.setStyleSheet(
+            f'color: {style.COLOR_ACCENT}; font-weight: 700;'
+            ' border: none; background: transparent;'
+        )
+        int_header.addWidget(int_lbl)
+        int_header.addStretch()
+        int_header.addWidget(self._pct_label)
+        int_col.addLayout(int_header)
 
-        # Status label
-        self._status_var = tk.StringVar()
+        self._slider = QSlider(Qt.Horizontal)
+        self._slider.setRange(0, 100)
+        self._slider.setValue(int(self._config.get('intensity', 0.75) * 100))
+        self._slider.setStyleSheet('border: none;')
+        self._slider.valueChanged.connect(self._update_pct_label)
+        self._slider.sliderReleased.connect(self._on_intensity_change)
+        int_col.addWidget(self._slider)
+        root.addWidget(int_card)
+
+        # ── Footer ──
+        self._autostart_cb = QCheckBox('Iniciar com Windows')
+        self._autostart_cb.setChecked(self._config.get('autostart', False))
+        self._autostart_cb.toggled.connect(self._on_autostart_change)
+        root.addWidget(self._autostart_cb)
+
         self._refresh_status()
-        ttk.Label(frame, textvariable=self._status_var).grid(row=4, column=0, columnspan=3, pady=4)
-
-        # Toggle button
-        self._toggle_btn = ttk.Button(frame, command=self._toggle, width=16)
         self._refresh_btn()
-        self._toggle_btn.grid(row=5, column=0, columnspan=3, pady=8)
 
         if self._pending_update_version:
             self._show_update_banner(self._pending_update_version)
 
-    # -- event handlers --
+    # ── Event handlers ──
 
-    def _on_mic_change(self, *_):
-        name = self._mic_var.get()
+    def _on_mic_change(self, name: str):
         idx = self._device_index_map.get(name)
         self._config.set('input_device_index', idx)
         self._config.set('input_device', name)
@@ -176,22 +248,22 @@ class SettingsUI:
         self._refresh_status()
         self._refresh_btn()
 
-    def _on_intensity_change(self, *_):
-        val = self._intensity_var.get() / 100.0
+    def _on_intensity_change(self):
+        val = self._slider.value() / 100.0
         self._config.set('intensity', round(val, 2))
         self._config.save()
         self._engine.set_intensity(val)
 
-    def _update_pct_label(self, *_):
-        self._pct_label.config(text=f"{int(self._intensity_var.get())}%")
+    def _update_pct_label(self, value: int):
+        if self._pct_label:
+            self._pct_label.setText(f'{value}%')
 
-    def _on_autostart_change(self):
-        enable = self._autostart_var.get()
-        self._config.set('autostart', enable)
+    def _on_autostart_change(self, checked: bool):
+        self._config.set('autostart', checked)
         self._config.save()
         exe = sys.executable if getattr(sys, 'frozen', False) else sys.argv[0]
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
-            if enable:
+            if checked:
                 winreg.SetValueEx(k, _APP_NAME, 0, winreg.REG_SZ, f'"{exe}"')
             else:
                 try:
@@ -201,47 +273,65 @@ class SettingsUI:
 
     def _toggle(self):
         if self._engine.is_running():
-            if self._pending_check is not None:
-                self._window.after_cancel(self._pending_check)
-                self._pending_check = None
             self._engine.stop()
             self._config.set('active', False)
+            self._config.save()
+            self._refresh_status()
+            self._refresh_btn()
         else:
             self._engine.start()
             self._config.set('active', True)
-            self._pending_check = self._window.after(800, self._check_engine_started)
-        self._config.save()
-        self._refresh_status()
-        self._refresh_btn()
+            self._config.save()
+            self._refresh_status()
+            self._refresh_btn()
+            QTimer.singleShot(800, self._check_engine_started)
 
     def _check_engine_started(self):
-        self._pending_check = None
         if not self._engine.is_running():
             err = self._engine.get_last_error() or 'Erro desconhecido'
-            messagebox.showerror('MTK Noise Canceller', f'Falha ao iniciar áudio:\n{err}')
+            QMessageBox.critical(
+                self._win, 'MTK Noise Canceller', f'Falha ao iniciar áudio:\n{err}'
+            )
             self._config.set('active', False)
             self._config.save()
         self._refresh_status()
         self._refresh_btn()
 
     def _refresh_status(self):
-        self._status_var.set('● Ativo' if self._engine.is_running() else '● Inativo')
+        if not self._status_label:
+            return
+        active = self._engine.is_running()
+        color = style.COLOR_ACTIVE if active else style.COLOR_INACTIVE
+        self._status_label.setText('● ATIVO' if active else '● INATIVO')
+        self._status_label.setStyleSheet(
+            f'color: {color}; font-size: 11px; font-weight: 700;'
+        )
 
     def _refresh_btn(self):
-        self._toggle_btn.config(text='Desativar' if self._engine.is_running() else 'Ativar')
+        if not self._power_btn:
+            return
+        active = self._engine.is_running()
+        border = style.COLOR_ACTIVE if active else style.COLOR_INACTIVE
+        bg = '#f0fdf4' if active else '#fef2f2'
+        self._power_btn.setStyleSheet(
+            f'QPushButton {{ border: 3px solid {border}; border-radius: 32px;'
+            f' background: {bg}; font-size: 26px; }}'
+            f'QPushButton:hover {{ background: {bg}; }}'
+        )
 
     def notify_update(self, version: str) -> None:
         self._pending_update_version = version
-        if self._window is not None:
-            self._window.after(0, lambda v=version: self._show_update_banner(v))
+        if self._win is not None:
+            QTimer.singleShot(0, lambda v=version: self._show_update_banner(v))
 
     def _show_update_banner(self, version: str) -> None:
         self._update_version = version
-        self._update_label.config(text=f'⬆ v{version} disponível')
-        self._update_frame.grid()
+        self._update_label.setText(f'⬆ v{version} disponível')
+        self._update_frame.setVisible(True)
 
     def _on_update_click(self) -> None:
-        self._update_btn.config(text='Baixando... 0%', state='disabled')
+        self._update_btn.setText('Baixando... 0%')
+        self._update_btn.setEnabled(False)
         threading.Thread(target=self._download_and_install, daemon=True).start()
 
     def _download_and_install(self) -> None:
@@ -252,13 +342,14 @@ class SettingsUI:
             if self._cmd_queue:
                 self._cmd_queue.put('quit')
         except Exception as e:
-            if self._window is not None:
-                self._window.after(0, lambda msg=str(e): self._on_download_error(msg))
+            if self._win is not None:
+                QTimer.singleShot(0, lambda msg=str(e): self._on_download_error(msg))
 
     def _on_download_error(self, msg: str) -> None:
-        self._update_btn.config(text='Atualizar agora', state='normal')
-        messagebox.showerror('MTK Noise Canceller', f'Falha no download:\n{msg}')
+        self._update_btn.setText('Atualizar agora')
+        self._update_btn.setEnabled(True)
+        QMessageBox.critical(self._win, 'MTK Noise Canceller', f'Falha no download:\n{msg}')
 
     def _on_download_progress(self, pct: int) -> None:
-        if self._window is not None:
-            self._window.after(0, lambda p=pct: self._update_btn.config(text=f'Baixando... {p}%'))
+        if self._win is not None:
+            QTimer.singleShot(0, lambda p=pct: self._update_btn.setText(f'Baixando... {p}%'))
