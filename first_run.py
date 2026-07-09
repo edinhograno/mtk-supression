@@ -22,6 +22,11 @@ class _InstallSignals(QObject):
     done = Signal(bool)
 
 
+class _ProgressDialog(QDialog):
+    def closeEvent(self, event):
+        event.ignore()
+
+
 def run_if_needed(config: Config) -> bool:
     if not config.get('first_run', True):
         return True
@@ -83,19 +88,16 @@ def _ask_install_vbcable() -> bool:
     btns.addWidget(ok_btn)
     layout.addLayout(btns)
 
-    result = [False]
     cancel.clicked.connect(dlg.reject)
-    ok_btn.clicked.connect(lambda: (result.__setitem__(0, True), dlg.accept()))
-    dlg.exec()
-    return result[0]
+    ok_btn.clicked.connect(dlg.accept)
+    return dlg.exec() == QDialog.Accepted
 
 
 def _install_with_progress() -> bool:
-    dlg = QDialog()
+    dlg = _ProgressDialog()
     dlg.setWindowTitle('MTK Noise Canceller')
     dlg.setFixedSize(400, 160)
     dlg.setModal(True)
-    dlg.closeEvent = lambda e: e.ignore()
 
     layout = QVBoxLayout(dlg)
     layout.setContentsMargins(30, 30, 30, 30)
@@ -148,11 +150,9 @@ def _ask_autostart() -> bool:
     btns.addWidget(yes_btn)
     layout.addLayout(btns)
 
-    result = [False]
     no_btn.clicked.connect(dlg.reject)
-    yes_btn.clicked.connect(lambda: (result.__setitem__(0, True), dlg.accept()))
-    dlg.exec()
-    return result[0]
+    yes_btn.clicked.connect(dlg.accept)
+    return dlg.exec() == QDialog.Accepted
 
 
 def _show_install_error():
