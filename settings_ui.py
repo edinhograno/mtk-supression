@@ -67,6 +67,7 @@ class SettingsUI:
         self._pct_label: QLabel | None = None
         self._slider: QSlider | None = None
         self._start_check_timer: QTimer | None = None
+        self._dark: bool = False
 
     def request_show(self):
         """Thread-safe: enqueue show command."""
@@ -82,7 +83,8 @@ class SettingsUI:
         """Build window, poll cmd_queue, run Qt event loop. CALL FROM MAIN THREAD ONLY."""
         self._cmd_queue = cmd_queue
         app = QApplication.instance() or QApplication(sys.argv)
-        app.setStyleSheet(style.app_stylesheet())
+        self._dark = style.is_dark_mode()
+        app.setStyleSheet(style.app_stylesheet(self._dark))
         self._build()
         if self._show_on_start:
             self._win.show()
@@ -125,8 +127,9 @@ class SettingsUI:
 
         # ── Update banner (hidden by default) ──
         self._update_frame = QFrame()
+        banner_bg = '#1a3024' if self._dark else '#e6f4ea'
         self._update_frame.setStyleSheet(
-            'QFrame { background: #e6f4ea; border-radius: 6px; }'
+            f'QFrame {{ background: {banner_bg}; border-radius: 6px; }}'
         )
         banner_row = QHBoxLayout(self._update_frame)
         banner_row.setContentsMargins(8, 6, 8, 6)
@@ -328,7 +331,7 @@ class SettingsUI:
             return
         active = self._engine.is_running()
         border = style.COLOR_ACTIVE if active else style.COLOR_INACTIVE
-        bg = '#f0fdf4' if active else '#fef2f2'
+        bg = ('#1a3024' if active else '#3a1a1a') if self._dark else ('#f0fdf4' if active else '#fef2f2')
         self._power_btn.setStyleSheet(
             f'QPushButton {{ border: 3px solid {border}; border-radius: 32px;'
             f' background: {bg}; font-size: 26px; }}'

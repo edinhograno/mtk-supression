@@ -32,7 +32,7 @@ def run_if_needed(config: Config) -> bool:
         return True
 
     app = QApplication.instance() or QApplication(sys.argv)
-    app.setStyleSheet(style.app_stylesheet())
+    app.setStyleSheet(style.app_stylesheet(style.is_dark_mode()))
 
     if not vbcable_setup.is_installed():
         if not _ask_install_vbcable():
