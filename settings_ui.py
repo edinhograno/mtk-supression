@@ -60,6 +60,7 @@ class SettingsUI:
         self._status_label: QLabel | None = None
         self._pct_label: QLabel | None = None
         self._slider: QSlider | None = None
+        self._start_check_timer: QTimer | None = None
 
     def request_show(self):
         """Thread-safe: enqueue show command."""
@@ -273,6 +274,9 @@ class SettingsUI:
 
     def _toggle(self):
         if self._engine.is_running():
+            if self._start_check_timer is not None:
+                self._start_check_timer.stop()
+                self._start_check_timer = None
             self._engine.stop()
             self._config.set('active', False)
             self._config.save()
@@ -284,9 +288,13 @@ class SettingsUI:
             self._config.save()
             self._refresh_status()
             self._refresh_btn()
-            QTimer.singleShot(800, self._check_engine_started)
+            self._start_check_timer = QTimer()
+            self._start_check_timer.setSingleShot(True)
+            self._start_check_timer.timeout.connect(self._check_engine_started)
+            self._start_check_timer.start(800)
 
     def _check_engine_started(self):
+        self._start_check_timer = None
         if not self._engine.is_running():
             err = self._engine.get_last_error() or 'Erro desconhecido'
             QMessageBox.critical(
