@@ -117,7 +117,10 @@ def _install_with_progress() -> bool:
     sig.done.connect(lambda ok: (result.__setitem__(0, ok), dlg.accept()))
 
     def worker():
-        ok = vbcable_setup.install(progress_callback=sig.progress.emit)
+        try:
+            ok = vbcable_setup.install(progress_callback=sig.progress.emit)
+        except Exception:
+            ok = False
         sig.done.emit(ok)
 
     threading.Thread(target=worker, daemon=True).start()

@@ -43,6 +43,12 @@ def _query_input_devices() -> list[tuple[int, str]]:
     ]
 
 
+class _SettingsWindow(QWidget):
+    def closeEvent(self, event):
+        event.ignore()
+        self.hide()
+
+
 class SettingsUI:
     def __init__(self, config: Config, engine: AudioEngine, show_on_start: bool = False):
         self._config = config
@@ -108,10 +114,9 @@ class SettingsUI:
         self._refresh_btn()
 
     def _build(self):
-        win = QWidget()
+        win = _SettingsWindow()
         win.setWindowTitle('MTK Noise Canceller')
         win.setFixedSize(340, 300)
-        win.closeEvent = lambda e: (e.ignore(), win.hide())
         self._win = win
 
         root = QVBoxLayout(win)
@@ -237,6 +242,9 @@ class SettingsUI:
     # ── Event handlers ──
 
     def _on_mic_change(self, name: str):
+        if self._start_check_timer is not None:
+            self._start_check_timer.stop()
+            self._start_check_timer = None
         idx = self._device_index_map.get(name)
         self._config.set('input_device_index', idx)
         self._config.set('input_device', name)
